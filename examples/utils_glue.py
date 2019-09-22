@@ -24,7 +24,7 @@ import sys
 from io import open
 
 from scipy.stats import pearsonr, spearmanr
-from sklearn.metrics import matthews_corrcoef, f1_score
+from sklearn.metrics import matthews_corrcoef, f1_score, precision_score, recall_score
 
 logger = logging.getLogger(__name__)
 
@@ -574,6 +574,21 @@ def acc_and_f1(preds, labels):
     }
 
 
+def multi_class(preds, labels):
+    acc = simple_accuracy(preds, labels)
+    f1_micro = f1_score(y_true=labels, y_pred=preds, average="micro")
+    f1_macro = f1_score(y_true=labels, y_pred=preds, average="macro")
+    precision = precision_score(y_true=labels, y_pred=preds, average="macro")
+    recall = recall_score(y_true=labels, y_pred=preds, average="macro")
+    return {
+        "acc": acc,
+        "f1_micro": f1_micro,
+        "f1_macro": f1_macro,
+        "precision": precision,
+        "recall": recall
+    }
+
+
 def pearson_and_spearman(preds, labels):
     pearson_corr = pearsonr(preds, labels)[0]
     spearman_corr = spearmanr(preds, labels)[0]
@@ -593,7 +608,7 @@ def compute_metrics(task_name, preds, labels):
     elif task_name == "mrpc":
         return acc_and_f1(preds, labels)
     elif task_name == "stance":
-        return acc_and_f1(preds, labels)
+        return multi_class(preds, labels)
     elif task_name == "sts-b":
         return pearson_and_spearman(preds, labels)
     elif task_name == "qqp":
