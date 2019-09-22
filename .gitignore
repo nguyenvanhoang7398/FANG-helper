@@ -132,3 +132,5 @@ examples/runs
 # data
 data
 serialization_dir
+.idea/
+GLUE/
