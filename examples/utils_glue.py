@@ -604,7 +604,7 @@ def compute_metrics(task_name, preds, labels):
     if task_name == "cola":
         return {"mcc": matthews_corrcoef(labels, preds)}
     elif task_name == "sst-2":
-        return {"acc": simple_accuracy(preds, labels)}
+        return {"acc": multi_class(preds, labels)}
     elif task_name == "mrpc":
         return acc_and_f1(preds, labels)
     elif task_name == "stance":
