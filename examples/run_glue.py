@@ -186,6 +186,58 @@ def train(args, train_dataset, model, tokenizer):
     return global_step, tr_loss / global_step
 
 
+def predict(args, model, tokenizer, prefix=""):
+    eval_task_names = ("mnli", "mnli-mm") if args.task_name == "mnli" else (args.task_name,)
+    eval_outputs_dirs = (args.output_dir, args.output_dir + '-MM') if args.task_name == "mnli" else (args.output_dir,)
+
+    for eval_task, eval_output_dir in zip(eval_task_names, eval_outputs_dirs):
+        eval_dataset = load_and_cache_examples(args, eval_task, tokenizer, evaluate=True)
+
+        if not os.path.exists(eval_output_dir) and args.local_rank in [-1, 0]:
+            os.makedirs(eval_output_dir)
+
+        args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
+        # Note that DistributedSampler samples randomly
+        eval_sampler = SequentialSampler(eval_dataset) if args.local_rank == -1 else DistributedSampler(eval_dataset)
+        eval_dataloader = DataLoader(eval_dataset, sampler=eval_sampler, batch_size=args.eval_batch_size)
+
+        # Predict!
+        logger.info("***** Running prediction {} *****".format(prefix))
+        logger.info("  Num examples = %d", len(eval_dataset))
+        logger.info("  Batch size = %d", args.eval_batch_size)
+        nb_eval_steps = 0
+        preds = None
+        out_label_ids = None
+        for batch in tqdm(eval_dataloader, desc="Evaluating"):
+            model.eval()
+            batch = tuple(t.to(args.device) for t in batch)
+
+            with torch.no_grad():
+                inputs = {'input_ids': batch[0],
+                          'attention_mask': batch[1],
+                          'token_type_ids': batch[2] if args.model_type in ['bert', 'xlnet'] else None}
+                outputs = model(**inputs)
+                tmp_eval_loss, logits = outputs[:2]
+
+            nb_eval_steps += 1
+            if preds is None:
+                preds = logits.detach().cpu().numpy()
+                out_label_ids = inputs['labels'].detach().cpu().numpy()
+            else:
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+                out_label_ids = np.append(out_label_ids, inputs['labels'].detach().cpu().numpy(), axis=0)
+
+        if args.output_mode == "classification":
+            preds = np.argmax(preds, axis=1)
+        elif args.output_mode == "regression":
+            preds = np.squeeze(preds)
+
+        output_eval_file = os.path.join(eval_output_dir, "predict_results.txt")
+        with open(output_eval_file, "w") as writer:
+            for p in preds:
+                writer.write("%s\n" % p)
+
+
 def evaluate(args, model, tokenizer, prefix=""):
     # Loop to handle MNLI double evaluation (matched, mis-matched)
     eval_task_names = ("mnli", "mnli-mm") if args.task_name == "mnli" else (args.task_name,)
@@ -330,6 +382,8 @@ def main():
     parser.add_argument("--do_train", action='store_true',
                         help="Whether to run training.")
     parser.add_argument("--do_eval", action='store_true',
+                        help="Whether to run eval on the dev set.")
+    parser.add_argument("--do_predict", action='store_true',
                         help="Whether to run eval on the dev set.")
     parser.add_argument("--evaluate_during_training", action='store_true',
                         help="Rul evaluation during training at each logging step.")
@@ -487,6 +541,14 @@ def main():
             result = evaluate(args, model, tokenizer, prefix=global_step)
             result = dict((k + '_{}'.format(global_step), v) for k, v in result.items())
             results.update(result)
+
+    if args.do_predict and args.local_rank in [-1, 0]:
+        tokenizer = tokenizer_class.from_pretrained(args.output_dir, do_lower_case=args.do_lower_case)
+        checkpoint = args.output_dir
+        global_step = checkpoint.split('-')[-1]
+        model = model_class.from_pretrained(checkpoint)
+        model.to(args.device)
+        predict(args, model, tokenizer, prefix=global_step)
 
     return results
 
