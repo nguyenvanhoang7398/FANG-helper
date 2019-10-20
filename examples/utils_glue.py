@@ -237,6 +237,18 @@ class Sst2Processor(DataProcessor):
         return self._create_examples(
             self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
 
+    def get_predict_samples(self, data_dir):
+        lines = self._read_tsv(os.path.join(data_dir, "predict.tsv"))
+        examples = []
+        for (i, line) in enumerate(lines):
+            if i == 0:
+                continue
+            guid = line[0]
+            text_a = line[1]
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=0))  # dummy label can be either 0 or 1
+        return examples
+
     def get_labels(self):
         """See base class."""
         return ["0", "1"]

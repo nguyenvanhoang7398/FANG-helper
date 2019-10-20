@@ -191,7 +191,7 @@ def predict(args, model, tokenizer, prefix=""):
     eval_outputs_dirs = (args.output_dir, args.output_dir + '-MM') if args.task_name == "mnli" else (args.output_dir,)
 
     for eval_task, eval_output_dir in zip(eval_task_names, eval_outputs_dirs):
-        eval_dataset = load_and_cache_examples(args, eval_task, tokenizer, evaluate=True)
+        eval_dataset = load_and_cache_pred_examples(args, eval_task, tokenizer)
 
         if not os.path.exists(eval_output_dir) and args.local_rank in [-1, 0]:
             os.makedirs(eval_output_dir)
@@ -300,6 +300,42 @@ def evaluate(args, model, tokenizer, prefix=""):
                 writer.write("%s = %s\n" % (key, str(result[key])))
 
     return results
+
+
+def load_and_cache_pred_examples(args, task, tokenizer):
+    processor = processors[task]()
+    output_mode = output_modes[task]
+
+    logger.info("Creating features from dataset file at %s", args.data_dir)
+    label_list = processor.get_labels()
+    if task in ['mnli', 'mnli-mm'] and args.model_type in ['roberta']:
+        # HACK(label indices are swapped in RoBERTa pretrained model)
+        label_list[1], label_list[2] = label_list[2], label_list[1]
+    examples = processor.get_predict_samples(args.data_dir)
+    features = convert_examples_to_features(examples, label_list, args.max_seq_length, tokenizer, output_mode,
+                                            cls_token_at_end=bool(args.model_type in ['xlnet']),
+                                            # xlnet has a cls token at the end
+                                            cls_token=tokenizer.cls_token,
+                                            cls_token_segment_id=2 if args.model_type in ['xlnet'] else 0,
+                                            sep_token=tokenizer.sep_token,
+                                            sep_token_extra=bool(args.model_type in ['roberta']),
+                                            # roberta uses an extra separator b/w pairs of sentences, cf. github.com/pytorch/fairseq/commit/1684e166e3da03f5b600dbb7855cb98ddfcd0805
+                                            pad_on_left=bool(args.model_type in ['xlnet']),  # pad on the left for xlnet
+                                            pad_token=tokenizer.convert_tokens_to_ids([tokenizer.pad_token])[0],
+                                            pad_token_segment_id=4 if args.model_type in ['xlnet'] else 0,
+                                            )
+
+    # Convert to Tensors and build dataset
+    all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
+    all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
+    all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
+    if output_mode == "classification":
+        all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.long)
+    elif output_mode == "regression":
+        all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.float)
+
+    dataset = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+    return dataset
 
 
 def load_and_cache_examples(args, task, tokenizer, evaluate=False):
