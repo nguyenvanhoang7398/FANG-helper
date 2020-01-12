@@ -8,5 +8,4 @@ python ./examples/run_glue.py \
   --do_predict \
   --do_lower_case \
   --data_dir $GLUE_DIR/$TASK_NAME \
-  --output_dir $TASK_NAME/roberta/ \
-  --no_cuda
+  --output_dir $TASK_NAME/roberta/

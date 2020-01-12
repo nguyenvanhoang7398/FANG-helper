@@ -8,5 +8,4 @@ python ./examples/run_glue.py \
   --do_predict \
   --do_lower_case \
   --data_dir $GLUE_DIR/SENTIMENT_FNN \
-  --output_dir SENTIMENT_FNN/roberta/ \
-  --no_cuda
+  --output_dir SENTIMENT_FNN/roberta/
