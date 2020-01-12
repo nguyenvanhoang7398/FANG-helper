@@ -137,6 +137,17 @@ class Stance2Processor(DataProcessor):
         """See base class."""
         return ["support", "deny"]
 
+    def get_predict_samples(self, data_dir):
+        lines = self._read_tsv(os.path.join(data_dir, "predict.tsv"))
+        examples = []
+        for (i, line) in enumerate(lines):
+            guid = line[0]
+            text_a = line[1]
+            text_b = line[2]
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label="support"))  # dummy label can be whatever
+        return examples
+
     def map_raw_label(self, label):
         if label in ["support", "comment"]:
             return "support"
