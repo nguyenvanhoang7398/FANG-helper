@@ -1,9 +1,9 @@
 export GLUE_DIR=GLUE
-export TASK_NAME=STANCE
+export TASK_NAME=STANCE2
 
 python ./examples/run_glue.py \
-  --model_type roberta \
-  --model_name_or_path roberta-base \
+  --model_type bert \
+  --model_name_or_path bert-base-uncased \
   --task_name $TASK_NAME \
   --do_train \
   --do_eval \
@@ -13,4 +13,6 @@ python ./examples/run_glue.py \
   --per_gpu_train_batch_size 32 \
   --learning_rate 2e-5 \
   --num_train_epochs 5.0 \
-  --output_dir $TASK_NAME/roberta/
+  --output_dir $TASK_NAME/bert/ \
+  --logging_steps 200 \
+  --evaluate_during_training \
