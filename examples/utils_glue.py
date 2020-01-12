@@ -119,6 +119,48 @@ class StanceProcessor(DataProcessor):
         return examples
 
 
+class Stance2Processor(DataProcessor):
+    """Processor for the sentence pair classification data sets"""
+
+    def get_train_examples(self, data_dir):
+        """See base class."""
+        logger.info("LOOKING AT {}".format(os.path.join(data_dir, "train.tsv")))
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+
+    def get_dev_examples(self, data_dir):
+        """See base class."""
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+
+    def get_labels(self):
+        """See base class."""
+        return ["support", "deny"]
+
+    def map_raw_label(self, label):
+        if label in ["support", "comment"]:
+            return "support"
+        if label in ["deny"]:
+            return "deny"
+        raise ValueError("Unsupported label {}".format(label))
+
+    def _create_examples(self, lines, set_type):
+        """Creates examples for the training and dev sets."""
+        examples = []
+        for (i, line) in enumerate(lines):
+            guid = "%s-%s" % (set_type, line[0])
+            text_a = line[1]
+            text_b = line[2]
+            label = line[3]
+            try:
+                mapped_label = self.map_raw_label(label)
+                examples.append(
+                    InputExample(guid=guid, text_a=text_a, text_b=text_b, label=mapped_label))
+            except ValueError as e:
+                print(e)
+        return examples
+
+
 class MrpcProcessor(DataProcessor):
     """Processor for the MRPC data set (GLUE version)."""
 
@@ -621,6 +663,8 @@ def compute_metrics(task_name, preds, labels):
         return acc_and_f1(preds, labels)
     elif task_name == "stance":
         return multi_class(preds, labels)
+    elif task_name == "stance2":
+        return multi_class(preds, labels)
     elif task_name == "sts-b":
         return pearson_and_spearman(preds, labels)
     elif task_name == "qqp":
@@ -649,7 +693,8 @@ processors = {
     "qnli": QnliProcessor,
     "rte": RteProcessor,
     "wnli": WnliProcessor,
-    "stance": StanceProcessor
+    "stance": StanceProcessor,
+    "stance2": Stance2Processor
 }
 
 output_modes = {
@@ -663,7 +708,8 @@ output_modes = {
     "qnli": "classification",
     "rte": "classification",
     "wnli": "classification",
-    "stance": "classification"
+    "stance": "classification",
+    "stance2": "classification"
 }
 
 GLUE_TASKS_NUM_LABELS = {
@@ -676,5 +722,6 @@ GLUE_TASKS_NUM_LABELS = {
     "qnli": 2,
     "rte": 2,
     "wnli": 2,
-    "stance": 4
+    "stance": 4,
+    "stance2": 2
 }

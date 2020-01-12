@@ -45,6 +45,7 @@ from pytorch_transformers import AdamW, WarmupLinearSchedule
 
 from utils_glue import (compute_metrics, convert_examples_to_features,
                         output_modes, processors)
+from sklearn.metrics import confusion_matrix
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +291,7 @@ def evaluate(args, model, tokenizer, prefix=""):
         elif args.output_mode == "regression":
             preds = np.squeeze(preds)
         result = compute_metrics(eval_task, preds, out_label_ids)
+        cfs_mtx = confusion_matrix(out_label_ids, preds)
         results.update(result)
 
         output_eval_file = os.path.join(eval_output_dir, "eval_results.txt")
@@ -298,6 +300,8 @@ def evaluate(args, model, tokenizer, prefix=""):
             for key in sorted(result.keys()):
                 logger.info("  %s = %s", key, str(result[key]))
                 writer.write("%s = %s\n" % (key, str(result[key])))
+            logger.info("%s", cfs_mtx)
+            writer.write("%s\n" % cfs_mtx)
 
     return results
 
