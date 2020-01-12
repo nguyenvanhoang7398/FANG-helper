@@ -172,6 +172,59 @@ class Stance2Processor(DataProcessor):
         return examples
 
 
+class RelationProcessor(DataProcessor):
+    """Processor for the sentence pair classification data sets"""
+
+    def get_train_examples(self, data_dir):
+        """See base class."""
+        logger.info("LOOKING AT {}".format(os.path.join(data_dir, "train.tsv")))
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+
+    def get_dev_examples(self, data_dir):
+        """See base class."""
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+
+    def get_labels(self):
+        """See base class."""
+        return ["related", "unrelated"]
+
+    def get_predict_samples(self, data_dir):
+        lines = self._read_tsv(os.path.join(data_dir, "predict.tsv"))
+        examples = []
+        for (i, line) in enumerate(lines):
+            guid = line[0]
+            text_a = line[1]
+            text_b = line[2]
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label="related"))  # dummy label can be whatever
+        return examples
+
+    def map_raw_label(self, label):
+        if label in ["support", "deny", "comment"]:
+            return "related"
+        if label in ["unrelated"]:
+            return "unrelated"
+        raise ValueError("Unsupported label {}".format(label))
+
+    def _create_examples(self, lines, set_type):
+        """Creates examples for the training and dev sets."""
+        examples = []
+        for (i, line) in enumerate(lines):
+            guid = "%s-%s" % (set_type, line[0])
+            text_a = line[1]
+            text_b = line[2]
+            label = line[3]
+            try:
+                mapped_label = self.map_raw_label(label)
+                examples.append(
+                    InputExample(guid=guid, text_a=text_a, text_b=text_b, label=mapped_label))
+            except ValueError as e:
+                print(e)
+        return examples
+
+
 class MrpcProcessor(DataProcessor):
     """Processor for the MRPC data set (GLUE version)."""
 
@@ -674,6 +727,8 @@ def compute_metrics(task_name, preds, labels):
         return multi_class(preds, labels)
     elif task_name == "stance2":
         return multi_class(preds, labels)
+    elif task_name == "relation":
+        return multi_class(preds, labels)
     elif task_name == "sts-b":
         return pearson_and_spearman(preds, labels)
     elif task_name == "qqp":
@@ -691,6 +746,7 @@ def compute_metrics(task_name, preds, labels):
     else:
         raise KeyError(task_name)
 
+
 processors = {
     "cola": ColaProcessor,
     "mnli": MnliProcessor,
@@ -703,7 +759,8 @@ processors = {
     "rte": RteProcessor,
     "wnli": WnliProcessor,
     "stance": StanceProcessor,
-    "stance2": Stance2Processor
+    "stance2": Stance2Processor,
+    "relation": RelationProcessor
 }
 
 output_modes = {
@@ -718,7 +775,8 @@ output_modes = {
     "rte": "classification",
     "wnli": "classification",
     "stance": "classification",
-    "stance2": "classification"
+    "stance2": "classification",
+    "relation": "classification"
 }
 
 GLUE_TASKS_NUM_LABELS = {
@@ -732,5 +790,6 @@ GLUE_TASKS_NUM_LABELS = {
     "rte": 2,
     "wnli": 2,
     "stance": 4,
-    "stance2": 2
+    "stance2": 2,
+    "relation": 2
 }
