@@ -1,5 +1,5 @@
 export GLUE_DIR=GLUE
-export TASK_NAME=STANCE2
+export TASK_NAME=RELATION
 
 python ./examples/run_glue.py \
   --model_type roberta \
