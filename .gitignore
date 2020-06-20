@@ -134,3 +134,6 @@ data
 serialization_dir
 .idea/
 GLUE/
+SENTIMENT_FNN
+STANCE2
+RELATION

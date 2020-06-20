@@ -1,7 +1,7 @@
 export GLUE_DIR=GLUE
 export TASK_NAME=RELATION
 
-python ./examples/run_glue.py \
+/home/nguyen/anaconda3/envs/fyp/bin/python ./examples/run_glue.py \
   --model_type roberta \
   --model_name_or_path $TASK_NAME/roberta-large/ \
   --task_name $TASK_NAME \

@@ -30,6 +30,10 @@ from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
 from torch.utils.data.distributed import DistributedSampler
 from tensorboardX import SummaryWriter
 from tqdm import tqdm, trange
+from utils import *
+
+import string
+printable = set(string.printable)
 
 from pytorch_transformers import (WEIGHTS_NAME, BertConfig,
                                   BertForSequenceClassification, BertTokenizer,
@@ -187,9 +191,11 @@ def train(args, train_dataset, model, tokenizer):
     return global_step, tr_loss / global_step
 
 
-def predict(args, model, tokenizer, prefix=""):
+def predict(args, model, tokenizer, prefix="", k_attn=10):
     eval_task_names = ("mnli", "mnli-mm") if args.task_name == "mnli" else (args.task_name,)
     eval_outputs_dirs = (args.output_dir, args.output_dir + '-MM') if args.task_name == "mnli" else (args.output_dir,)
+    token2id = load_json(os.path.join(args.output_dir, "vocab.json"))
+    id2tokens = {v: k for k, v in token2id.items()}
 
     for eval_task, eval_output_dir in zip(eval_task_names, eval_outputs_dirs):
         eval_dataset = load_and_cache_pred_examples(args, eval_task, tokenizer)
@@ -209,6 +215,8 @@ def predict(args, model, tokenizer, prefix=""):
         nb_eval_steps = 0
         preds = None
         out_label_ids = None
+        all_attended_tokens = []
+
         for batch in tqdm(eval_dataloader, desc="Evaluating"):
             model.eval()
             batch = tuple(t.to(args.device) for t in batch)
@@ -218,8 +226,26 @@ def predict(args, model, tokenizer, prefix=""):
                           'attention_mask': batch[1],
                           'token_type_ids': batch[2] if args.model_type in ['bert', 'xlnet'] else None}
                 outputs = model(**inputs)
-                logits = outputs[0]
+                logits, attentions = outputs[0], outputs[-1]
 
+                # attentions = (#layers, #batches, #heads, text a len, text b len)
+                layer_attentions = []
+                for layer_attn in attentions:
+                    sum_head_attentions = torch.sum(layer_attn, dim=1).squeeze(1)
+                    # sum_head_attentions = (#batches, text len, text len) this is because of self-attention
+                    sum_self_attentions = torch.sum(sum_head_attentions, dim=1).squeeze(1)
+                    # sum_head_attentions = (#batches, text len) this is because of self-attention
+                    layer_attentions.append(sum_self_attentions.detach().cpu().numpy())
+                combined_layer_attentions = np.sum(layer_attentions, axis=0)
+
+                # exclude the first cls token
+                combined_layer_attentions = combined_layer_attentions[:, 1:]
+                top_attended_pos = np.argsort(combined_layer_attentions, axis=1)
+                cpu_inputs = batch[0].cpu().numpy()
+                top_attended_idxs = [[cpu_inputs[i][pos] for pos in top_pos]
+                                     for i, top_pos in enumerate(top_attended_pos)]
+                top_attended_tokens = [[id2tokens[int(i)] for i in x] for x in top_attended_idxs]
+                all_attended_tokens.extend(top_attended_tokens)
             nb_eval_steps += 1
             if preds is None:
                 preds = logits.detach().cpu().numpy()
@@ -235,6 +261,30 @@ def predict(args, model, tokenizer, prefix=""):
         with open(output_eval_file, "w") as writer:
             for p in preds:
                 writer.write("%s\n" % p)
+
+        input_predict_file = os.path.join(args.data_dir, "predict.tsv")
+        predict_ids = [x[0] for x in read_csv(input_predict_file, True, "\t")]
+
+        output_attention_file = os.path.join(eval_output_dir, "predict_attention.tsv")
+        buffer = []
+        for i, sample_attn_tok in enumerate(all_attended_tokens):
+            filtered_attn_tok = [''.join(filter(lambda x: x in printable, tok))
+                                 for tok in sample_attn_tok if valid_attn_token(tok)]
+            unique_attn_toks = []
+            for x in filtered_attn_tok:
+                if x not in unique_attn_toks:
+                    unique_attn_toks.append(x)
+            top_attended_tokens = unique_attn_toks[::-1][:k_attn]
+            buffer.append([predict_ids[i], " ".join(top_attended_tokens)])
+        write_csv(buffer, None, output_attention_file, "\t")
+
+
+def valid_attn_token(tok):
+    if tok[0] == "<" and tok[-1] == ">":
+        return False
+    if tok in ["$$"]:
+        return False
+    return True
 
 
 def evaluate(args, model, tokenizer, prefix=""):

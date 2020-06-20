@@ -3,7 +3,7 @@ export TASK_NAME=STANCE2
 
 python ./examples/run_glue.py \
   --model_type roberta \
-  --model_name_or_path STANCE2/roberta-large/ \
+  --model_name_or_path $TASK_NAME/roberta-large/ \
   --task_name $TASK_NAME \
   --do_eval \
   --max_seq_length 100 \
