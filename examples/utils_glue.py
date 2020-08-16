@@ -348,7 +348,7 @@ class Sst2Processor(DataProcessor):
         examples = []
         for (i, line) in enumerate(lines):     
             guid = line[0]
-            text_a = line[1]
+            text_a = line[1].lower()
             examples.append(
                 InputExample(guid=guid, text_a=text_a, text_b=None, label="0"))  # dummy label can be either 0 or 1
         return examples
@@ -364,7 +364,7 @@ class Sst2Processor(DataProcessor):
             if i == 0:
                 continue
             guid = "%s-%s" % (set_type, i)
-            text_a = line[0]
+            text_a = line[0].lower()
             label = line[1]
             examples.append(
                 InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
@@ -720,7 +720,7 @@ def compute_metrics(task_name, preds, labels):
     if task_name == "cola":
         return {"mcc": matthews_corrcoef(labels, preds)}
     elif task_name == "sst-2":
-        return {"acc": multi_class(preds, labels)}
+        return multi_class(preds, labels)
     elif task_name == "mrpc":
         return acc_and_f1(preds, labels)
     elif task_name == "stance":

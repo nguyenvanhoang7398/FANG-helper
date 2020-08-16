@@ -252,9 +252,9 @@ def predict(args, model, tokenizer, prefix="", k_attn=10):
             else:
                 preds = np.append(preds, logits.detach().cpu().numpy(), axis=0) 
 
-        if args.output_mode == "classification":
+        if args.predict_output_mode == "classification":
             preds = np.argmax(preds, axis=1)
-        elif args.output_mode == "regression":
+        elif args.predict_output_mode == "regression":
             preds = np.squeeze(preds)
 
         output_eval_file = os.path.join(eval_output_dir, "predict_results.txt")
@@ -523,6 +523,7 @@ def main():
                         help="For distributed training: local_rank")
     parser.add_argument('--server_ip', type=str, default='', help="For distant debugging.")
     parser.add_argument('--server_port', type=str, default='', help="For distant debugging.")
+    parser.add_argument('--predict_output_mode', type=str, default='classification', help="Output mode in prediction")
     args = parser.parse_args()
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train and not args.overwrite_output_dir:
